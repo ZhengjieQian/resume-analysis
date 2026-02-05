@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 
 interface DateRangePickerProps {
+  id?: string
   startDate: string
   endDate: string | null
   isCurrent?: boolean
@@ -14,6 +15,7 @@ interface DateRangePickerProps {
 }
 
 export function DateRangePicker({
+  id = 'date',
   startDate,
   endDate,
   isCurrent = false,
@@ -49,11 +51,11 @@ export function DateRangePicker({
   return (
     <div className="flex flex-wrap gap-4 items-end">
       <div className="flex-1 min-w-[140px]">
-        <Label htmlFor="startDate" className="text-sm text-gray-600">
+        <Label htmlFor={`${id}-startDate`} className="text-sm text-gray-600">
           开始日期
         </Label>
         <Input
-          id="startDate"
+          id={`${id}-startDate`}
           type="month"
           value={formatForInput(startDate)}
           onChange={(e) => onStartDateChange(formatFromInput(e.target.value))}
@@ -62,11 +64,11 @@ export function DateRangePicker({
       </div>
 
       <div className="flex-1 min-w-[140px]">
-        <Label htmlFor="endDate" className="text-sm text-gray-600">
+        <Label htmlFor={`${id}-endDate`} className="text-sm text-gray-600">
           结束日期
         </Label>
         <Input
-          id="endDate"
+          id={`${id}-endDate`}
           type="month"
           value={isCurrent ? '' : formatForInput(endDate || '')}
           onChange={(e) => onEndDateChange(formatFromInput(e.target.value))}
@@ -79,11 +81,11 @@ export function DateRangePicker({
       {onCurrentChange && (
         <div className="flex items-center space-x-2 pb-2">
           <Checkbox
-            id="isCurrent"
+            id={`${id}-isCurrent`}
             checked={isCurrent}
             onCheckedChange={handleCurrentChange}
           />
-          <Label htmlFor="isCurrent" className="text-sm cursor-pointer">
+          <Label htmlFor={`${id}-isCurrent`} className="text-sm cursor-pointer">
             至今
           </Label>
         </div>

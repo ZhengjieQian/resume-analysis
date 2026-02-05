@@ -1,15 +1,25 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Plus, Trash2, GripVertical, ChevronUp, ChevronDown } from 'lucide-react'
+
+interface BulletItem {
+  id: string
+  text: string
+}
 
 interface BulletListEditorProps {
   items: string[]
   onChange: (items: string[]) => void
   placeholder?: string
   label?: string
+}
+
+let bulletIdCounter = 0
+function nextBulletId() {
+  return `bullet-${++bulletIdCounter}`
 }
 
 export function BulletListEditor({
@@ -19,13 +29,41 @@ export function BulletListEditor({
   label = '描述',
 }: BulletListEditorProps) {
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
+  const itemsRef = useRef<BulletItem[]>(
+    items.map((text) => ({ id: nextBulletId(), text }))
+  )
+
+  // Keep internal items in sync when external items change
+  const syncItems = useCallback((newTexts: string[]) => {
+    // If lengths differ, rebuild
+    if (newTexts.length !== itemsRef.current.length) {
+      itemsRef.current = newTexts.map((text, i) => ({
+        id: itemsRef.current[i]?.id || nextBulletId(),
+        text,
+      }))
+    } else {
+      itemsRef.current = itemsRef.current.map((item, i) => ({
+        ...item,
+        text: newTexts[i],
+      }))
+    }
+  }, [])
+
+  // Sync on each render in case parent changed items
+  if (items.length !== itemsRef.current.length ||
+      items.some((t, i) => t !== itemsRef.current[i]?.text)) {
+    syncItems(items)
+  }
 
   const handleAdd = () => {
+    const newItem: BulletItem = { id: nextBulletId(), text: '' }
+    itemsRef.current = [...itemsRef.current, newItem]
     onChange([...items, ''])
     setFocusedIndex(items.length)
   }
 
   const handleRemove = (index: number) => {
+    itemsRef.current = itemsRef.current.filter((_, i) => i !== index)
     const newItems = items.filter((_, i) => i !== index)
     onChange(newItems)
     setFocusedIndex(null)
@@ -40,7 +78,10 @@ export function BulletListEditor({
   const handleMoveUp = (index: number) => {
     if (index === 0) return
     const newItems = [...items]
+    const newRefs = [...itemsRef.current]
     ;[newItems[index - 1], newItems[index]] = [newItems[index], newItems[index - 1]]
+    ;[newRefs[index - 1], newRefs[index]] = [newRefs[index], newRefs[index - 1]]
+    itemsRef.current = newRefs
     onChange(newItems)
     setFocusedIndex(index - 1)
   }
@@ -48,7 +89,10 @@ export function BulletListEditor({
   const handleMoveDown = (index: number) => {
     if (index === items.length - 1) return
     const newItems = [...items]
+    const newRefs = [...itemsRef.current]
     ;[newItems[index], newItems[index + 1]] = [newItems[index + 1], newItems[index]]
+    ;[newRefs[index], newRefs[index + 1]] = [newRefs[index + 1], newRefs[index]]
+    itemsRef.current = newRefs
     onChange(newItems)
     setFocusedIndex(index + 1)
   }
@@ -69,7 +113,7 @@ export function BulletListEditor({
       <div className="space-y-2">
         {items.map((item, index) => (
           <div
-            key={index}
+            key={itemsRef.current[index]?.id || index}
             className={`flex items-start gap-2 p-2 rounded border ${
               focusedIndex === index ? 'border-blue-400 bg-blue-50' : 'border-gray-200'
             }`}

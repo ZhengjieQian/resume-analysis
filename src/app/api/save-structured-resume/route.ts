@@ -10,8 +10,57 @@ import { s3 } from '@/lib/s3'
 import { v4 as uuidv4 } from 'uuid'
 import type { ParsedResume } from '@/types/resume'
 
+const MAX_STRING_LENGTH = 10000
+const MAX_ARRAY_LENGTH = 100
+
+function isNonEmptyString(val: unknown): val is string {
+  return typeof val === 'string' && val.length > 0
+}
+
+function validateStringField(val: unknown, maxLen = MAX_STRING_LENGTH): boolean {
+  return val === undefined || val === null || (typeof val === 'string' && val.length <= maxLen)
+}
+
+function validateResumeData(data: unknown): string | null {
+  if (!data || typeof data !== 'object') {
+    return 'Resume data must be an object'
+  }
+
+  const d = data as Record<string, unknown>
+
+  // Validate personalInfo
+  if (d.personalInfo !== undefined && d.personalInfo !== null) {
+    if (typeof d.personalInfo !== 'object') return 'personalInfo must be an object'
+    const pi = d.personalInfo as Record<string, unknown>
+    for (const key of ['name', 'email', 'phone', 'location', 'linkedIn', 'github', 'portfolio']) {
+      if (!validateStringField(pi[key], 500)) return `personalInfo.${key} is invalid`
+    }
+  }
+
+  // Validate summary
+  if (!validateStringField(d.summary, MAX_STRING_LENGTH)) return 'summary is too long'
+
+  // Validate arrays don't exceed max length
+  for (const key of ['experiences', 'education', 'skills', 'projects']) {
+    if (d[key] !== undefined && d[key] !== null) {
+      if (!Array.isArray(d[key])) return `${key} must be an array`
+      if ((d[key] as unknown[]).length > MAX_ARRAY_LENGTH) return `${key} exceeds max length of ${MAX_ARRAY_LENGTH}`
+    }
+  }
+
+  return null
+}
+
 export async function POST(request: Request) {
   try {
+    const contentLength = request.headers.get('content-length')
+    if (contentLength && parseInt(contentLength, 10) > 5 * 1024 * 1024) {
+      return Response.json(
+        { ok: false, error: 'Request body too large' },
+        { status: 413 }
+      )
+    }
+
     const body = await request.json()
     const { data, originalS3Key } = body as {
       data: ParsedResume
@@ -21,6 +70,14 @@ export async function POST(request: Request) {
     if (!data) {
       return Response.json(
         { ok: false, error: 'Resume data is required' },
+        { status: 400 }
+      )
+    }
+
+    const validationError = validateResumeData(data)
+    if (validationError) {
+      return Response.json(
+        { ok: false, error: validationError },
         { status: 400 }
       )
     }
@@ -115,7 +172,7 @@ function generateMarkdown(data: ParsedResume): string {
   // Experience
   if (data.experiences && data.experiences.length > 0) {
     lines.push(`## Experience\n`)
-    for (const exp of data.experiences.sort((a, b) => a.order - b.order)) {
+    for (const exp of [...data.experiences].sort((a, b) => a.order - b.order)) {
       const dateRange = exp.isCurrent
         ? `${formatDate(exp.startDate)} - Present`
         : `${formatDate(exp.startDate)} - ${formatDate(exp.endDate)}`
@@ -134,7 +191,7 @@ function generateMarkdown(data: ParsedResume): string {
   // Education
   if (data.education && data.education.length > 0) {
     lines.push(`## Education\n`)
-    for (const edu of data.education.sort((a, b) => a.order - b.order)) {
+    for (const edu of [...data.education].sort((a, b) => a.order - b.order)) {
       const dateRange = `${formatDate(edu.startDate)} - ${formatDate(edu.endDate)}`
       const degreeField = edu.field ? `${edu.degree} in ${edu.field}` : edu.degree
 
@@ -177,7 +234,7 @@ function generateMarkdown(data: ParsedResume): string {
   // Projects
   if (data.projects && data.projects.length > 0) {
     lines.push(`## Projects\n`)
-    for (const project of data.projects.sort((a, b) => a.order - b.order)) {
+    for (const project of [...data.projects].sort((a, b) => a.order - b.order)) {
       let header = `### ${project.name}`
       if (project.url) header += ` | ${project.url}`
       if (project.startDate) {

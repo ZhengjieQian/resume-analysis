@@ -3,6 +3,18 @@
 import { Badge } from '@/components/ui/badge'
 import type { ParsedResume } from '@/types/resume'
 
+function sanitizeUrl(url: string): string {
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return parsed.href
+    }
+    return '#'
+  } catch {
+    return '#'
+  }
+}
+
 interface ResumePreviewProps {
   data: ParsedResume
 }
@@ -35,17 +47,17 @@ export function ResumePreview({ data }: ResumePreviewProps) {
           </div>
           <div className="flex flex-wrap gap-2 text-sm text-blue-600 mt-1">
             {data.personalInfo.linkedIn && (
-              <a href={data.personalInfo.linkedIn} target="_blank" rel="noopener noreferrer">
+              <a href={sanitizeUrl(data.personalInfo.linkedIn)} target="_blank" rel="noopener noreferrer">
                 LinkedIn
               </a>
             )}
             {data.personalInfo.github && (
-              <a href={data.personalInfo.github} target="_blank" rel="noopener noreferrer">
+              <a href={sanitizeUrl(data.personalInfo.github)} target="_blank" rel="noopener noreferrer">
                 GitHub
               </a>
             )}
             {data.personalInfo.portfolio && (
-              <a href={data.personalInfo.portfolio} target="_blank" rel="noopener noreferrer">
+              <a href={sanitizeUrl(data.personalInfo.portfolio)} target="_blank" rel="noopener noreferrer">
                 Portfolio
               </a>
             )}
@@ -65,7 +77,7 @@ export function ResumePreview({ data }: ResumePreviewProps) {
       {data.experiences && data.experiences.length > 0 && (
         <section className="mb-6">
           <h2 className="text-xl font-bold border-b pb-1 mb-3">Experience</h2>
-          {data.experiences
+          {[...data.experiences]
             .sort((a, b) => a.order - b.order)
             .map((exp) => (
               <div key={exp.id} className="mb-4">
@@ -99,7 +111,7 @@ export function ResumePreview({ data }: ResumePreviewProps) {
       {data.education && data.education.length > 0 && (
         <section className="mb-6">
           <h2 className="text-xl font-bold border-b pb-1 mb-3">Education</h2>
-          {data.education
+          {[...data.education]
             .sort((a, b) => a.order - b.order)
             .map((edu) => (
               <div key={edu.id} className="mb-4">
@@ -160,7 +172,7 @@ export function ResumePreview({ data }: ResumePreviewProps) {
       {data.projects && data.projects.length > 0 && (
         <section className="mb-6">
           <h2 className="text-xl font-bold border-b pb-1 mb-3">Projects</h2>
-          {data.projects
+          {[...data.projects]
             .sort((a, b) => a.order - b.order)
             .map((project) => (
               <div key={project.id} className="mb-4">
@@ -170,7 +182,7 @@ export function ResumePreview({ data }: ResumePreviewProps) {
                       {project.name}
                       {project.url && (
                         <a
-                          href={project.url}
+                          href={sanitizeUrl(project.url)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="ml-2 text-blue-600 text-sm font-normal"
