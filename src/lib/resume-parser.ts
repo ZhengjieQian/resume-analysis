@@ -371,6 +371,11 @@ export function parseEducation(lines: string[]): Education[] {
   let currentEdu: Partial<Education> | null = null;
   let currentDescription: string[] = [];
 
+  const degreeKeywords =
+    /bachelor'?s?|master'?s?|ph\.?d\.?|doctor|associate'?s?|b\.?s\.?|m\.?s\.?|b\.?a\.?|m\.?a\.?|mba|学士|硕士|博士/i;
+  const institutionKeywords =
+    /university|college|institute|school|academy|学院|大学/i;
+
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed) continue;
@@ -392,6 +397,31 @@ export function parseEducation(lines: string[]): Education[] {
     const bulletMatch = trimmed.match(/^[-*]\s+(.+)$/);
     if (bulletMatch && currentEdu) {
       currentDescription.push(bulletMatch[1]);
+      continue;
+    }
+
+    // 如果行包含学校名，说明是新的教育记录
+    if (institutionKeywords.test(trimmed)) {
+      // 保存前一条
+      if (currentEdu && currentEdu.institution) {
+        currentEdu.description = currentDescription;
+        educationList.push(currentEdu as Education);
+      }
+      currentEdu = parseEducationHeader(trimmed);
+      currentDescription = [];
+      continue;
+    }
+
+    // 如果行包含学位关键词，补充到当前教育记录
+    if (degreeKeywords.test(trimmed) && currentEdu) {
+      const inMatch = trimmed.match(/(.+?)\s+in\s+(.+)/i);
+      if (inMatch) {
+        currentEdu.degree = inMatch[1].trim();
+        currentEdu.field = inMatch[2].trim();
+      } else {
+        currentEdu.degree = trimmed;
+      }
+      currentEdu.confidence = Math.min(100, (currentEdu.confidence || 50) + 15);
       continue;
     }
 
@@ -429,34 +459,48 @@ function parseEducationHeader(header: string): Partial<Education> {
     order: 0,
   };
 
-  const parts = header.split('|').map((p) => p.trim());
-
   // 学位关键词
   const degreeKeywords =
-    /bachelor|master|ph\.?d|doctor|associate|b\.?s\.?|m\.?s\.?|b\.?a\.?|m\.?a\.?|mba|学士|硕士|博士/i;
+    /bachelor'?s?|master'?s?|ph\.?d\.?|doctor|associate'?s?|b\.?s\.?|m\.?s\.?|b\.?a\.?|m\.?a\.?|mba|学士|硕士|博士/i;
 
   // 日期模式
   const datePattern =
     /(\d{4}|\w+\s+\d{4})\s*[-–]\s*(\d{4}|\w+\s+\d{4}|Present|Current|Expected|预计)/i;
 
+  // 第一步：从整行中提取日期（如果有的话），剩余部分作为文本继续解析
+  let remaining = header;
+  const dateMatch = header.match(datePattern);
+  if (dateMatch) {
+    edu.startDate = normalizeDate(dateMatch[1]);
+    const endDateStr = dateMatch[2];
+    if (/present|current|expected|预计/i.test(endDateStr)) {
+      edu.endDate = null;
+    } else {
+      edu.endDate = normalizeDate(endDateStr);
+    }
+    edu.confidence = (edu.confidence || 50) + 15;
+    // 移除日期部分，保留剩余文本
+    remaining = header.replace(dateMatch[0], '').replace(/\s{2,}/g, ' ').trim();
+  }
+
+  // 第二步：用 | 或逗号分割剩余文本
+  let parts: string[];
+  if (remaining.includes('|')) {
+    parts = remaining.split('|').map((p) => p.trim()).filter(Boolean);
+  } else {
+    parts = remaining.split(',').map((p) => p.trim()).filter(Boolean);
+  }
+
   for (const part of parts) {
-    // 检查日期
-    const dateMatch = part.match(datePattern);
-    if (dateMatch) {
-      edu.startDate = normalizeDate(dateMatch[1]);
-      const endDateStr = dateMatch[2];
-      if (/present|current|expected|预计/i.test(endDateStr)) {
-        edu.endDate = null;
-      } else {
-        edu.endDate = normalizeDate(endDateStr);
-      }
-      edu.confidence = (edu.confidence || 50) + 15;
+    // GPA
+    const gpaMatch = part.match(/gpa[:\s]*(\d+\.?\d*)/i);
+    if (gpaMatch) {
+      edu.gpa = gpaMatch[1];
       continue;
     }
 
     // 检查学位
     if (degreeKeywords.test(part) && !edu.degree) {
-      // 尝试分离学位和专业
       const inMatch = part.match(/(.+?)\s+in\s+(.+)/i);
       if (inMatch) {
         edu.degree = inMatch[1].trim();
@@ -468,28 +512,19 @@ function parseEducationHeader(header: string): Partial<Education> {
       continue;
     }
 
-    // GPA
-    const gpaMatch = part.match(/gpa[:\s]*(\d+\.?\d*)/i);
-    if (gpaMatch) {
-      edu.gpa = gpaMatch[1];
-      continue;
-    }
-
-    // 学校名称（通常包含 University, College, Institute 等）
+    // 学校名称
     if (
-      /university|college|institute|school|学院|大学/i.test(part) &&
+      /university|college|institute|school|academy|学院|大学/i.test(part) &&
       !edu.institution
     ) {
       edu.institution = part;
-      edu.confidence = (edu.confidence || 50) + 10;
+      edu.confidence = (edu.confidence || 50) + 20;
       continue;
     }
 
-    // 剩余内容
+    // 剩余内容：可能是地点等
     if (!edu.institution) {
       edu.institution = part;
-    } else if (!edu.field && !degreeKeywords.test(part)) {
-      edu.field = part;
     }
   }
 
