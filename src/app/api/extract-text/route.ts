@@ -11,6 +11,8 @@ import mammoth from "mammoth"
 import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs"
 import * as path from "path"
 import { pathToFileURL } from "url"
+import { buildParsedResume } from "@/lib/resume-parser"
+import type { ParsedResume } from "@/types/resume"
 
 // 设置 PDF.js worker - 使用 legacy 构建的本地 worker 文件
 const workerPath = path.join(process.cwd(), "public", "pdf.worker.min.mjs")
@@ -179,7 +181,7 @@ function convertToMarkdown(text: string): string {
   for (let i = lineIndex; i < lines.length; i++) {
     const line = lines[i]
     const trimmedLine = line.trim().toLowerCase()
-    
+
     // 检查是否是 section title
     let isTitle = false
     let matchedTitle = ""
@@ -538,7 +540,16 @@ export async function POST(request: Request) {
       )
     }
 
-    return Response.json({ ok: true, text })
+    // 解析为结构化数据
+    let structured: ParsedResume | null = null
+    try {
+      structured = buildParsedResume(text, s3Key)
+    } catch (parseError: any) {
+      console.error("结构化解析失败:", parseError)
+      // 不影响基本功能，继续返回文本
+    }
+
+    return Response.json({ ok: true, text, structured })
   } catch (error: any) {
     console.error("提取错误:", error)
     return Response.json(
