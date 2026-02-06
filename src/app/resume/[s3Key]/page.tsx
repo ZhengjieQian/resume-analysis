@@ -6,12 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { ResumeEditorContainer, ResumePreview } from '@/components/resume'
+import { ResumeEditorContainer, ResumePreview, CareerAnalysis } from '@/components/resume'
 import ReactMarkdown from 'react-markdown'
 import { ArrowLeft, Download, AlertCircle } from 'lucide-react'
 import type { ParsedResume } from '@/types/resume'
 
-type ViewMode = 'preview' | 'edit' | 'raw'
+type ViewMode = 'preview' | 'edit' | 'raw' | 'ai'
 
 export default function ResumePage() {
   const params = useParams()
@@ -269,6 +269,7 @@ export default function ResumePage() {
                   <TabsTrigger value="preview">Preview</TabsTrigger>
                   <TabsTrigger value="edit">Edit</TabsTrigger>
                   <TabsTrigger value="raw">Raw Markdown</TabsTrigger>
+                  <TabsTrigger value="ai">AI Analysis</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="preview">
@@ -347,6 +348,17 @@ export default function ResumePage() {
                       </Button>
                     </div>
                   </div>
+                </TabsContent>
+
+                <TabsContent value="ai">
+                  {editedStructured ? (
+                    <CareerAnalysis data={editedStructured} />
+                  ) : (
+                    <div className="text-center py-12 text-gray-500">
+                      <p>Structured resume data is required for AI analysis.</p>
+                      <p className="text-sm mt-1">Please ensure your resume has been parsed first.</p>
+                    </div>
+                  )}
                 </TabsContent>
               </Tabs>
             )}
